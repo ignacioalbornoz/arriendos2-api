@@ -1,0 +1,13 @@
+fastapi
+numpy
+pandas
+psycopg2_binary
+pydantic
+pytest
+Requests
+SQLAlchemy
+supabase
+uvicorn
+pytest-cov
+selenium
+alembic

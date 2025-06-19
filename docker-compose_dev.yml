@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres
+    environment:
+      - POSTGRES_USER=arriendos2
+      - POSTGRES_PASSWORD=admin_arriendos2
+      - POSTGRES_DB=arriendos2_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U arriendos2 -d arriendos2_db"]
+      interval: 5s # Tiempo entre chequeos
+      timeout: 20s # Tiempo de espera para cada chequeo
+      retries: 20 # Número de intentos fallidos permitidos
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./app/Dockerfile
+    image: arriendos2-api:latest
+    volumes:
+      - ./app:/app
+      - ./shared_files:/app/shared_files
+    ports:
+      - 8080:8080
+    depends_on:
+      db:
+        condition: service_healthy
+
+    environment:
+      - MODE=DEV
+      - TITLE=Arriendos2-API-DEV
+      - FILE_EXTENSION=webp
+      - POSTGRES_USER=arriendos2
+      - POSTGRES_PASSWORD=admin_arriendos2
+      - POSTGRES_DB=arriendos2_db
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+
+volumes:
+  postgres-data:
