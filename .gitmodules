@@ -1,0 +1,3 @@
+[submodule "shared_files"]
+	path = shared_files
+	url = git@github.com:Clicomo/shared_files.git

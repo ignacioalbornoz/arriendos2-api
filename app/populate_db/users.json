@@ -1,0 +1,110 @@
+{
+  "users": [
+    {
+      "display_name": "Test Admin",
+      "email": "admin@clicomo.app",
+      "phone_number": "123456789",
+      "premium": true,
+      "terms_accepted": true
+    },
+    {
+      "display_name": "Test S.C. Cocina",
+      "email": "section.master.cocina@clicomo.app",
+      "phone_number": "123456789",
+      "premium": true,
+      "terms_accepted": true
+    },
+    {
+      "display_name": "Test S.C. Cafeteria",
+      "email": "section.master.cafeteria@clicomo.app",
+      "phone_number": "123456789",
+      "premium": true,
+      "terms_accepted": true
+    },
+    {
+      "display_name": "Test Runner",
+      "email": "runner@clicomo.app",
+      "phone_number": "123456789",
+      "premium": true,
+      "terms_accepted": true
+    },
+    {
+      "display_name": "Ignacio",
+      "email": "ignacio.albornoz@ug.uchile.cl",
+      "phone_number": "123456789",
+      "premium": true,
+      "terms_accepted": true,
+      "google_info": {
+        "id": "101251424232541110857",
+        "email": "ignacio.albornoz@ug.uchile.cl",
+        "family_name": "Albornoz",
+        "given_name": "Ignacio",
+        "hd": "ug.uchile.cl",
+        "name": "Ignacio Albornoz",
+        "locale": "en",
+        "verified_email": true
+      }
+    },
+    {
+      "display_name": "Ignacio",
+      "email": "ignacioalbornoz001@gmail.com",
+      "premium": true,
+      "terms_accepted": true,
+      "google_info": {
+        "id": "101541357488634546111",
+        "email": "ignacioalbornoz001@gmail.com",
+        "family_name": "Albornoz",
+        "given_name": "Ignacio",
+        "locale": "en",
+        "name": "Ignacio Albornoz",
+        "verified_email": true,
+        "picture": "https://lh3.googleusercontent.com/a/ACg8ocKJgRK8nPj8svM43JBVDQieGq-GDfob9b7FDAH73shJ=s96-c"
+      }
+    },
+    {
+      "display_name": "Gerard",
+      "email": "gerard.an2000@gmail.com",
+      "premium": false,
+      "terms_accepted": true,
+      "google_info": {
+        "id": "110934016644871072155",
+        "email": "gerard.an2000@gmail.com",
+        "family_name": "Cathalifaud",
+        "given_name": "Gerard",
+        "locale": "es",
+        "name": "Gerard Cathalifaud",
+        "verified_email": true
+      }
+    },
+    {
+      "display_name": "",
+      "email": "clicomochile@gmail.com",
+      "premium": true,
+      "terms_accepted": true
+    },
+    {
+      "display_name": "",
+      "email": "icnovatio@gmail.com",
+      "premium": false,
+      "terms_accepted": true
+    },
+    {
+      "display_name": "Eleonora",
+      "email": "cristian@agrospace.cl",
+      "premium": false,
+      "terms_accepted": true
+    },
+    {
+      "display_name": "Antonieta",
+      "email": "menvechile@gmail.com",
+      "premium": false,
+      "terms_accepted": true
+    },
+    {
+      "display_name": "Cristian",
+      "email": "cmattar@uchile.cl",
+      "premium": false,
+      "terms_accepted": true
+    }
+  ]
+}

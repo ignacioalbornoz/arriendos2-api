@@ -1,0 +1,186 @@
+name: Deploy to Google Cloud Run
+on:
+  push:
+    branches:
+      - main
+      - stage
+
+jobs:
+  restrict-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restrict commits and PRs to main
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [ "${{ github.head_ref }}" != "stage" ] && [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "Direct commits or PRs to main are only allowed from the 'stage' branch."
+            exit 1
+          fi
+
+      - name: Restrict commits and PRs to stage
+        if: github.ref == 'refs/heads/stage'
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ] && [ "${{ github.ref }}" != "refs/heads/stage" ]; then
+            echo "Direct commits or PRs to stage are only allowed from the 'dev' branch."
+            exit 1
+          fi
+
+  format:
+    runs-on: ubuntu-latest
+    needs: [restrict-commits]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Run Ruff format
+        id: ruff_format
+        run: |
+          ruff format .
+          git diff --exit-code
+
+      - name: Fail if formatting is required
+        if: steps.ruff_format.outcome == 'failure'
+        run: |
+          echo "Ruff formatted the code. Please commit the changes."
+          exit 1
+  lint:
+    runs-on: ubuntu-latest
+    needs: [restrict-commits, format]
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff Linting
+        run: ruff check .
+
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    needs: [restrict-commits, format, lint]
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.ORG_ACCESS_TOKEN }} 
+
+      - name: Set up Docker Compose
+        run: |
+          echo "Installing Docker Compose"
+          sudo apt-get update
+          sudo apt-get install docker-compose -y
+
+      - name: Log in to Google Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: notional-plasma-420604
+
+      - name: Create .env file
+        run: |
+          if [[ $GITHUB_REF == "refs/heads/main" ]]; then
+            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
+            echo "DATABASE_USER_PROD=${{ secrets.DATABASE_USER_PROD }}" >> .env
+            echo "DATABASE_PASSWORD_PROD=${{ secrets.DATABASE_PASSWORD_PROD }}" >> .env
+            echo "DATABASE_HOST_PROD=${{ secrets.DATABASE_HOST_PROD }}" >> .env
+            echo "DATABASE_NAME_PROD=${{ secrets.DATABASE_NAME_PROD }}" >> .env
+            echo "DATABASE_PORT_PROD=${{ secrets.DATABASE_PORT_PROD }}" >> .env
+            echo "ACCESS_TOKEN_EXPIRE_HOURS_PROD=${{ secrets.ACCESS_TOKEN_EXPIRE_HOURS_PROD }}" >> .env
+            echo "REFRESH_TOKEN_EXPIRE_HOURS_PROD=${{ secrets.REFRESH_TOKEN_EXPIRE_HOURS_PROD}}" >> .env
+            echo "ALGORITHM=${{ secrets.ALGORITHM }}" >> .env
+            echo "SECRET_KEY_PROD=${{ secrets.SECRET_KEY_PROD }}" >> .env
+            echo "EMAIL_PASS_PROD=${{ secrets.EMAIL_PASS_PROD }}" >> .env
+            echo "SUPABASE_KEY_PROD=${{ secrets.SUPABASE_KEY_PROD }}" >> .env
+            echo "SUPABASE_ANON_KEY_PROD=${{ secrets.SUPABASE_ANON_KEY_PROD }}" >> .env
+            echo "SUPABASE_URL_PROD=${{ secrets.SUPABASE_URL_PROD }}" >> .env
+            echo "API_SECRET_KEY_PROD=${{ secrets.API_SECRET_KEY_PROD }}" >> .env
+            echo "COMMERCIAL_CODE_PROD=${{ secrets.COMMERCIAL_CODE_PROD }}" >> .env
+            echo "MALL_COMMERCIAL_CODE_PROD=${{ secrets.MALL_COMMERCIAL_CODE_PROD }}" >> .env
+            echo "ONECLICK_API_SECRET_KEY_PROD=${{ secrets.ONECLICK_API_SECRET_KEY_PROD }}" >> .env
+            echo "ONECLICK_COMMERCIAL_CODE_PROD=${{ secrets.ONECLICK_COMMERCIAL_CODE_PROD }}" >> .env
+            echo "ONECLICK_TRANSACTION_COMMERCIAL_CODE_PROD=${{ secrets.ONECLICK_TRANSACTION_COMMERCIAL_CODE_PROD }}" >> .env
+
+          else
+            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
+            echo "DATABASE_USER_STAGE=${{ secrets.DATABASE_USER_STAGE }}" >> .env
+            echo "DATABASE_PASSWORD_STAGE=${{ secrets.DATABASE_PASSWORD_STAGE }}" >> .env
+            echo "DATABASE_HOST_STAGE=${{ secrets.DATABASE_HOST_STAGE }}" >> .env
+            echo "DATABASE_NAME_STAGE=${{ secrets.DATABASE_NAME_STAGE }}" >> .env
+            echo "DATABASE_PORT_STAGE=${{ secrets.DATABASE_PORT_STAGE }}" >> .env
+            echo "ACCESS_TOKEN_EXPIRE_HOURS_STAGE=${{ secrets.ACCESS_TOKEN_EXPIRE_HOURS_STAGE }}" >> .env
+            echo "REFRESH_TOKEN_EXPIRE_HOURS_STAGE=${{ secrets.REFRESH_TOKEN_EXPIRE_HOURS_STAGE}}" >> .env
+            echo "ALGORITHM=${{ secrets.ALGORITHM }}" >> .env
+            echo "SECRET_KEY_STAGE=${{ secrets.SECRET_KEY_STAGE }}" >> .env
+            echo "EMAIL_PASS_STAGE=${{ secrets.EMAIL_PASS_STAGE }}" >> .env
+            echo "SUPABASE_KEY_STAGE=${{ secrets.SUPABASE_KEY_STAGE }}" >> .env
+            echo "SUPABASE_ANON_KEY_STAGE=${{ secrets.SUPABASE_ANON_KEY_STAGE }}" >> .env
+            echo "BUCKET_NAME_STAGE=${{ secrets.BUCKET_NAME_STAGE }}" >> .env
+            echo "SUPABASE_PATH_STAGE=${{ secrets.SUPABASE_PATH_STAGE }}" >> .env
+            echo "SUPABASE_URL_STAGE=${{ secrets.SUPABASE_URL_STAGE }}" >> .env
+            echo "API_SECRET_KEY_STAGE=${{ secrets.API_SECRET_KEY_STAGE }}" >> .env
+            echo "COMMERCIAL_CODE_STAGE=${{ secrets.COMMERCIAL_CODE_STAGE }}" >> .env
+            echo "MALL_COMMERCIAL_CODE_STAGE=${{ secrets.MALL_COMMERCIAL_CODE_STAGE }}" >> .env
+            echo "ONECLICK_API_SECRET_KEY_STAGE=${{ secrets.ONECLICK_API_SECRET_KEY_STAGE }}" >> .env
+            echo "ONECLICK_COMMERCIAL_CODE_STAGE=${{ secrets.ONECLICK_COMMERCIAL_CODE_STAGE }}" >> .env
+            echo "ONECLICK_TRANSACTION_COMMERCIAL_CODE_STAGE=${{ secrets.ONECLICK_TRANSACTION_COMMERCIAL_CODE_STAGE }}" >> .env
+          fi
+
+      - name: Build and push Docker image
+        run: |
+          if [[ $GITHUB_REF == "refs/heads/main" ]]; then
+            sudo docker-compose -f docker-compose_prod.yml up --build -d
+            sudo docker-compose -f docker-compose_prod.yml logs
+            docker tag clicomo-back-backend:latest gcr.io/notional-plasma-420604/clicomo-back-prod
+            docker push gcr.io/notional-plasma-420604/clicomo-back-prod
+          else
+            sudo docker-compose -f docker-compose_stage.yml up --build -d
+            sudo docker-compose -f docker-compose_stage.yml logs
+            docker tag clicomo-back-backend:latest gcr.io/notional-plasma-420604/clicomo-back-stage
+            docker push gcr.io/notional-plasma-420604/clicomo-back-stage
+          fi
+
+      - name: Deploy to Google Cloud Run
+        run: |
+          if [[ $GITHUB_REF == "refs/heads/main" ]]; then
+            gcloud run deploy clicomo-back-prod \
+              --image=gcr.io/notional-plasma-420604/clicomo-back-prod \
+              --platform=managed \
+              --project=notional-plasma-420604 \
+              --region=southamerica-west1 \
+              --set-env-vars MODE=PROD,PYTHONPATH=/app/shared_files,TITLE=Clicomo-API,FILE_EXTENSION=webp,IMAGE_MAX_WIDTH=400,IMAGE_MAX_HEIGHT=400,IMAGE_QUALITY=90,APIKEY_NAME=clicomo-token,APIREFRESH_NAME=clicomo-refresh-token,SUPABASE_REDIRECT_TO=${{ secrets.SUPABASE_REDIRECT_TO_PROD }},REFRESH_TOKEN_EXPIRE_HOURS=${{ secrets.REFRESH_TOKEN_EXPIRE_HOURS_PROD }},DATABASE_USER=${{ secrets.DATABASE_USER_PROD }},DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD_PROD }},DATABASE_HOST=${{ secrets.DATABASE_HOST_PROD }},DATABASE_NAME=${{ secrets.DATABASE_NAME_PROD }},DATABASE_PORT=${{ secrets.DATABASE_PORT_PROD }},ACCESS_TOKEN_EXPIRE_HOURS=${{ secrets.ACCESS_TOKEN_EXPIRE_HOURS_PROD }},ALGORITHM=${{ secrets.ALGORITHM }},SECRET_KEY=${{ secrets.SECRET_KEY_PROD }},EMAIL_USER=${{ secrets.EMAIL_USER_PROD }},EMAIL_PASS=${{ secrets.EMAIL_PASS_PROD }},EMAIL_TO_SEND=${{ secrets.EMAIL_TO_SEND_PROD }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY_PROD }},SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY_PROD }},BUCKET_NAME=${{ secrets.BUCKET_NAME_PROD }},SUPABASE_PATH=${{ secrets.SUPABASE_PATH_PROD }},SUPABASE_URL=${{ secrets.SUPABASE_URL_PROD }},TRANSBANK_BASE_URL=${{ secrets.TRANSBANK_BASE_URL_PROD }},RETURN_URL=${{ secrets.RETURN_URL_PROD }},TRANSBANK_API_WEBPAY_URL=${{ secrets.TRANSBANK_API_WEBPAY_URL_PROD }},API_SECRET_KEY=${{ secrets.API_SECRET_KEY_PROD }},COMMERCIAL_CODE=${{ secrets.COMMERCIAL_CODE_PROD }},MALL_COMMERCIAL_CODE=${{ secrets.MALL_COMMERCIAL_CODE_PROD }},ONECLICK_API_SECRET_KEY=${{ secrets.ONECLICK_API_SECRET_KEY_PROD }},ONECLICK_COMMERCIAL_CODE=${{ secrets.ONECLICK_COMMERCIAL_CODE_PROD }},ONECLICK_TRANSACTION_COMMERCIAL_CODE=${{ secrets.ONECLICK_TRANSACTION_COMMERCIAL_CODE_PROD }},TRANSBANK_API_ONECLICK_INSCRIPTION_URL=${{ secrets.TRANSBANK_API_ONECLICK_INSCRIPTION_URL_PROD }},TRANSBANK_API_ONECLICK_TRANSACTION_URL=${{ secrets.TRANSBANK_API_ONECLICK_TRANSACTION_URL_PROD }},ONECLICK_INSCRIPTION_RETURN_URL=${{ secrets.ONECLICK_INSCRIPTION_RETURN_URL_PROD }},FILE_STORAGE_PATH=${{ secrets.FILE_STORAGE_PATH_PROD }},SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }},SMTP_SERVER=smtp-relay.brevo.com,SMTP_PORT=587,SMTP_USERNAME=7d4a30001@smtp-brevo.com,EMAIL_FROM=no-reply@clicomo.app,APP_CLICOMO_URL=https://admin.clicomo.app,API_CLICOMO_URL=https://clicomo-back-prod-135323102525.southamerica-west1.run.app
+          else
+            gcloud run deploy clicomo-back-stage \
+              --image=gcr.io/notional-plasma-420604/clicomo-back-stage \
+              --platform=managed \
+              --project=notional-plasma-420604 \
+              --region=southamerica-west1 \
+              --set-env-vars MODE=STAGE,TITLE=Clicomo-API-STAGE,FILE_EXTENSION=webp,IMAGE_MAX_WIDTH=400,IMAGE_MAX_HEIGHT=400,IMAGE_QUALITY=90,APIKEY_NAME=clicomo-token,APIREFRESH_NAME=clicomo-refresh-token,SUPABASE_REDIRECT_TO=${{ secrets.SUPABASE_REDIRECT_TO_STAGE }},REFRESH_TOKEN_EXPIRE_HOURS=${{ secrets.REFRESH_TOKEN_EXPIRE_HOURS_STAGE }},DATABASE_USER=${{ secrets.DATABASE_USER_STAGE }},DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD_STAGE }},DATABASE_HOST=${{ secrets.DATABASE_HOST_STAGE }},DATABASE_NAME=${{ secrets.DATABASE_NAME_STAGE }},DATABASE_PORT=${{ secrets.DATABASE_PORT_STAGE }},ACCESS_TOKEN_EXPIRE_HOURS=${{ secrets.ACCESS_TOKEN_EXPIRE_HOURS_STAGE }},ALGORITHM=${{ secrets.ALGORITHM }},SECRET_KEY=${{ secrets.SECRET_KEY_STAGE }},EMAIL_USER=${{ secrets.EMAIL_USER_STAGE }},EMAIL_PASS=${{ secrets.EMAIL_PASS_STAGE }},EMAIL_TO_SEND=${{ secrets.EMAIL_TO_SEND_STAGE }},SUPABASE_KEY=${{ secrets.SUPABASE_KEY_STAGE }},SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY_STAGE }},BUCKET_NAME=${{ secrets.BUCKET_NAME_STAGE }},SUPABASE_PATH=${{ secrets.SUPABASE_PATH_STAGE }},SUPABASE_URL=${{ secrets.SUPABASE_URL_STAGE }},TRANSBANK_BASE_URL=${{ secrets.TRANSBANK_BASE_URL_STAGE }},RETURN_URL=${{ secrets.RETURN_URL_STAGE }},TRANSBANK_API_WEBPAY_URL=${{ secrets.TRANSBANK_API_WEBPAY_URL_STAGE }},API_SECRET_KEY=${{ secrets.API_SECRET_KEY_STAGE }},COMMERCIAL_CODE=${{ secrets.COMMERCIAL_CODE_STAGE }},MALL_COMMERCIAL_CODE=${{ secrets.MALL_COMMERCIAL_CODE_STAGE }},ONECLICK_API_SECRET_KEY=${{ secrets.ONECLICK_API_SECRET_KEY_STAGE }},ONECLICK_COMMERCIAL_CODE=${{ secrets.ONECLICK_COMMERCIAL_CODE_STAGE }},ONECLICK_TRANSACTION_COMMERCIAL_CODE=${{ secrets.ONECLICK_TRANSACTION_COMMERCIAL_CODE_STAGE }},TRANSBANK_API_ONECLICK_INSCRIPTION_URL=${{ secrets.TRANSBANK_API_ONECLICK_INSCRIPTION_URL_STAGE }},TRANSBANK_API_ONECLICK_TRANSACTION_URL=${{ secrets.TRANSBANK_API_ONECLICK_TRANSACTION_URL_STAGE }},ONECLICK_INSCRIPTION_RETURN_URL=${{ secrets.ONECLICK_INSCRIPTION_RETURN_URL_STAGE }},FILE_STORAGE_PATH=${{ secrets.FILE_STORAGE_PATH_STAGE }},SMTP_SERVER=smtp-relay.brevo.com,SMTP_PORT=587,SMTP_USERNAME=7d4a30001@smtp-brevo.com,EMAIL_FROM=no-reply@clicomo.app,APP_CLICOMO_URL=https://admin-stage.clicomo.app,API_CLICOMO_URL=https://clicomo-back-stage-135323102525.southamerica-west1.run.app,PYTHONPATH=/app/shared_files,SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+          fi

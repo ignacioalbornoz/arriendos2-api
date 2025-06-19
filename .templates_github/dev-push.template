@@ -1,0 +1,129 @@
+name: Dev Checks Push
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  restrict-commits-pushes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restrict commits and pushes to dev
+        run: |
+          if [[ "${GITHUB_REF##refs/heads/}" != dev ]] && [[ "${GITHUB_REF##refs/heads/}" != feature/* ]] && [[ "${GITHUB_REF##refs/heads/}" != fix/* ]]; then
+            echo "Direct commits to dev are only allowed from the 'feature/*' branch, 'fix/*' branch or from the dev branch itself."
+            exit 1
+          fi
+
+  format:
+    runs-on: ubuntu-latest
+    needs: [restrict-commits-pushes]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Run Ruff format
+        id: ruff_format
+        run: |
+          ruff format .
+          git diff --exit-code
+
+      - name: Fail if formatting is required
+        if: steps.ruff_format.outcome == 'failure'
+        run: |
+          echo "Ruff formatted the code. Please commit the changes."
+          exit 1
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: [restrict-commits-pushes, format]
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff Linting
+        run: ruff check .
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: [restrict-commits-pushes, format, lint]
+
+    steps:
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          token: ${{ secrets.ORG_ACCESS_TOKEN }}
+          
+      - name: Set up Docker Compose
+        run: |
+          echo "Installing Docker Compose"
+          sudo apt-get update
+          sudo apt-get install docker-compose -y
+
+      - name: Create .env file
+        run: |
+          if [[ $GITHUB_REF == "refs/heads/dev" ]]; then
+            echo "ALGORITHM=${{ secrets.ALGORITHM }}" >> .env
+            echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
+            echo "ACCESS_TOKEN_EXPIRE_HOURS_DEV=${{ secrets.ACCESS_TOKEN_EXPIRE_HOURS_DEV }}" >> .env
+            echo "REFRESH_TOKEN_EXPIRE_HOURS_DEV=${{ secrets.REFRESH_TOKEN_EXPIRE_HOURS_DEV }}" >> .env
+            echo "SECRET_KEY_DEV=${{ secrets.SECRET_KEY_DEV }}" >> .env
+            echo "EMAIL_PASS_DEV=${{ secrets.EMAIL_PASS_DEV }}" >> .env
+            echo "SUPABASE_KEY_DEV=${{ secrets.SUPABASE_KEY_DEV }}" >> .env
+            echo "SUPABASE_ANON_KEY_DEV=${{ secrets.SUPABASE_ANON_KEY_DEV }}" >> .env
+            echo "SUPABASE_URL_DEV=${{ secrets.SUPABASE_URL_DEV }}" >> .env
+            echo "API_SECRET_KEY_DEV=${{ secrets.API_SECRET_KEY_DEV }}" >> .env
+            echo "COMMERCIAL_CODE_DEV=${{ secrets.COMMERCIAL_CODE_STAGE }}" >> .env
+            echo "MALL_COMMERCIAL_CODE_DEV=${{ secrets.MALL_COMMERCIAL_CODE_STAGE }}" >> .env
+            echo "ONECLICK_API_SECRET_KEY_DEV=${{ secrets.ONECLICK_API_SECRET_KEY_DEV }}" >> .env
+            echo "ONECLICK_COMMERCIAL_CODE_DEV=${{ secrets.ONECLICK_COMMERCIAL_CODE_DEV }}" >> .env
+            echo "ONECLICK_TRANSACTION_COMMERCIAL_CODE_DEV=${{ secrets.ONECLICK_TRANSACTION_COMMERCIAL_CODE_DEV }}" >> .env
+            echo "SUPABASE_REDIRECT_TO_DEV=${{ secrets.SUPABASE_REDIRECT_TO_DEV }}" >> .env
+          fi
+
+      - name: Build and start Docker containers in non-detached mode
+        run: |
+          (sudo docker-compose -f docker-compose_dev.yml up --build)&
+          sleep 30
+          echo "Esperando a que el contenedor de pruebas esté en ejecución..."
+          timeout=300
+          while [ -z "$(docker ps -q -f name=test)" ]; do
+              if [[ $timeout -le 0 ]]; then
+                  echo "Error: Tiempo de espera agotado para que el contenedor de pruebas inicie."
+                  exit 1
+              fi  # <- Asegúrate de agregar este cierre del if
+              echo "Contenedor de pruebas no está en ejecución. Esperando..."
+              sleep 10
+              timeout=$((timeout-1))
+          done
+
+          echo "Esperando a que se cree el archivo de cobertura..."
+          coverage_timeout=300 
+          until docker cp $(docker ps -q -f name=test):/app/coverage/coverage.xml ./coverage.xml; do
+            if [[ $coverage_timeout -le 0 ]]; then
+              echo "Error: Tiempo de espera agotado para que se cree el archivo de cobertura."
+              exit 1
+            fi
+            echo "Archivo de cobertura no encontrado. Esperando..."
+            sleep 5
+            coverage_timeout=$((coverage_timeout-1))
+          done

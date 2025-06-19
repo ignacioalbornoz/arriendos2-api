@@ -1,0 +1,4 @@
+from dependencies.session import UserRestaurantSessionGetter
+from shared_models.oneclick_cards import OneClickCard
+
+get_session_with_oneclick_card_perm = UserRestaurantSessionGetter(OneClickCard)
